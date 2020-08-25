@@ -6,32 +6,32 @@ from gaze_tracking import GazeTracking
 
 QLEN = 10
 DLEN = 3
-CLEN = 50
+CLEN = 30
 
-UM = None
-ML = None
-LM = None
-MR = None
+UM = 0.847
+ML = 0.897
+LM = 0.678
+MR = 0.610
 
-def get_postition(h, v):
-	if h <= UM:
-		if v >= LM:
+def get_dir(h, v):
+	if v <= UM:
+		if h >= LM:
 			return 0
-		elif v <= MR:
+		elif h <= MR:
 			return 2
 		else:
 			return 1
-	elif h >= ML:
-		if v >= LM:
+	elif v >= ML:
+		if h >= LM:
 			return 6
-		elif v <= MR:
+		elif h <= MR:
 			return 8
 		else:
 			return 7
 	else:
-		if v >= LM:
+		if h >= LM:
 			return 3
-		elif v <= MR:
+		elif h <= MR:
 			return 5
 		else:
 			return 4
@@ -44,7 +44,8 @@ def cal_dir(gaze, webcam, window, pos):
 
 	h = []
 	v = []
-	for i in range(CLEN):
+	i = 0
+	while i < CLEN:
 		window.read(timeout=20)
 		_, frame = webcam.read()
 		gaze.refresh(frame)
@@ -52,17 +53,22 @@ def cal_dir(gaze, webcam, window, pos):
 		sv = gaze.vertical_ratio()
 		if sh is not None:
 			h.append(sh)
+		else:
+			continue
 		if sv is not None:
 			v.append(sv)
+		else:
+			continue
+		i += 1
 
 	window[key].update(visible=True)
 	window.read(timeout=20)
 
 	#check number of samples (or collect until CLEN samples)
 
-	print('samples - ' + str(len(h)))
-	print('mean h - ' + str(mean(h)))
-	print('mean v - ' + str(mean(v)))
+#	print('samples - ' + str(len(h)))
+#	print('mean h - ' + str(mean(h)))
+#	print('mean v - ' + str(mean(v)))
 
 	return (mean(h), mean(v))
 
@@ -88,29 +94,29 @@ def calibrate(gaze, webcam, window):
 	lm = cal_dir(gaze, webcam, window, 7)
 	lr = cal_dir(gaze, webcam, window, 8)
 
-	print('borders')
-	print('ul/um - ' + str(avd(ul, um, h=True)))
-	print('um/ur - ' + str(avd(um, ur, h=True)))
-	print('cl/c - ' + str(avd(cl, c, h=True)))
-	print('c/cr - ' + str(avd(c, cr, h=True)))
-	print('ll/lm - ' + str(avd(ll, lm, h=True)))
-	print('lm/lr - ' + str(avd(lm, lr, h=True)))
-	print('ul/cl - ' + str(avd(ul, cl, h=False)))
-	print('cl/ll - ' + str(avd(cl, ll, h=False)))
-	print('um/c - ' + str(avd(um, c, h=False)))
-	print('c/lm - ' + str(avd(c, lm, h=False)))
-	print('ur/cr - ' + str(avd(ur, cr, h=False)))
-	print('cr/lr - ' + str(avd(cr, lr, h=False)))
-
+#	print('borders')
+#	print('ul/um - ' + str(avd(ul, um, h=True)))
+#	print('um/ur - ' + str(avd(um, ur, h=True)))
+#	print('cl/c - ' + str(avd(cl, c, h=True)))
+#	print('c/cr - ' + str(avd(c, cr, h=True)))
+#	print('ll/lm - ' + str(avd(ll, lm, h=True)))
+#	print('lm/lr - ' + str(avd(lm, lr, h=True)))
+#	print('ul/cl - ' + str(avd(ul, cl, h=False)))
+#	print('cl/ll - ' + str(avd(cl, ll, h=False)))
+#	print('um/c - ' + str(avd(um, c, h=False)))
+#	print('c/lm - ' + str(avd(c, lm, h=False)))
+#	print('ur/cr - ' + str(avd(ur, cr, h=False)))
+#	print('cr/lr - ' + str(avd(cr, lr, h=False)))
+#
 	#border of rows/columns
 	UM = mean([avd(ul, cl, h=False), avd(um, c, h=False), avd(ur, cr, h=False)])
-	UM = int(UM * 100)
+	#UM = int(UM * 1000)
 	ML = mean([avd(cl, ll, h=False), avd(c, lm, h=False), avd(cr, lr, h=False)])
-	ML = int(ML * 100)
+	#ML = int(ML * 1000)
 	LM = mean([avd(ul, um, h=True), avd(cl, c, h=True), avd(ll, lm, h=True)])
-	LM = int(LM * 100)
+	#LM = int(LM * 1000)
 	MR = mean([avd(um, ur, h=True), avd(c, cr, h=True), avd(lm, lr, h=True)])
-	MR = int(MR * 100)
+	#MR = int(MR * 1000)
 
 	print('UM - ' + str(UM))
 	print('ML - ' + str(ML))
@@ -171,7 +177,9 @@ def main():
 		#get average gaze direction
 		if i == QLEN:
 			i =- QLEN
-			s = get_direction(h, v)
+			s = get_dir(mean(h), mean(v))
+			key = 'img' + str(s)
+			window[key].update(visible=False)
 			d.append(s)
 			if len(d) > DLEN:
 				d.pop(0)
@@ -183,7 +191,7 @@ def main():
 		if d.count(d[0]) == len(d):
 			#select direction
 			key = 'img' + str(d[0])
-			window[key].update(visible=False)
+			window[key].update(visible=True)
 		else:
 			#set background color of d[0]
 			pass
