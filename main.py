@@ -14,15 +14,38 @@ LM = None
 MR = None
 
 def get_postition(h, v):
-	pass
+	if h <= UM:
+		if v >= LM:
+			return 0
+		elif v <= MR:
+			return 2
+		else:
+			return 1
+	elif h >= ML:
+		if v >= LM:
+			return 6
+		elif v <= MR:
+			return 8
+		else:
+			return 7
+	else:
+		if v >= LM:
+			return 3
+		elif v <= MR:
+			return 5
+		else:
+			return 4
 
-def direction(gaze, webcam, pos):
-	print(pos)
-	time.sleep(3)
+def cal_dir(gaze, webcam, window, pos):
+	key = 'img' + str(pos)
+	window[key].update(visible=False)
+	window.read(timeout=20)
+	time.sleep(1)
 
 	h = []
 	v = []
 	for i in range(CLEN):
+		window.read(timeout=20)
 		_, frame = webcam.read()
 		gaze.refresh(frame)
 		sh = gaze.horizontal_ratio()
@@ -32,15 +55,14 @@ def direction(gaze, webcam, pos):
 		if sv is not None:
 			v.append(sv)
 
+	window[key].update(visible=True)
+	window.read(timeout=20)
+
 	#check number of samples (or collect until CLEN samples)
 
 	print('samples - ' + str(len(h)))
 	print('mean h - ' + str(mean(h)))
 	print('mean v - ' + str(mean(v)))
-	print('max h - ' + str(max(h)))
-	print('min v - ' + str(max(v)))
-	print('max h - ' + str(min(h)))
-	print('min v - ' + str(min(v)))
 
 	return (mean(h), mean(v))
 
@@ -52,40 +74,48 @@ def avd(a, b, h=True):
 	else: #v
 		return mean([av, bv])
 
-def calibrate(gaze, webcam):
+def calibrate(gaze, webcam, window):
 	#get average values for all directions
 	#change pos to integer
 	#change lower to bottom?
-	ul = direction(gaze, webcam, 'upper left')
-	um = direction(gaze, webcam, 'upper middle')
-	ur = direction(gaze, webcam, 'upper right')
-	cl = direction(gaze, webcam, 'center left')
-	c = direction(gaze, webcam, 'center')
-	cr = direction(gaze, webcam, 'center right')
-	ll = direction(gaze, webcam, 'lower left')
-	lm = direction(gaze, webcam, 'lower middle')
-	lr = direction(gaze, webcam, 'lower right')
+	ul = cal_dir(gaze, webcam, window, 0)
+	um = cal_dir(gaze, webcam, window, 1)
+	ur = cal_dir(gaze, webcam, window, 2)
+	cl = cal_dir(gaze, webcam, window, 3)
+	c = cal_dir(gaze, webcam, window, 4)
+	cr = cal_dir(gaze, webcam, window, 5)
+	ll = cal_dir(gaze, webcam, window, 6)
+	lm = cal_dir(gaze, webcam, window, 7)
+	lr = cal_dir(gaze, webcam, window, 8)
 
 	print('borders')
-	print('ul/um - ' + str(border(ul, um)))
-	print('um/ur - ' + str(border(um, ur)))
-	print('cl/c - ' + str(border(cl, c)))
-	print('c/cr - ' + str(border(c, cr)))
-	print('ll/lm - ' + str(border(ll, lm)))
-	print('lm/lr - ' + str(border(lm, lr)))
-	print('ul/cl - ' + str(border(ul, cl)))
-	print('cl/ll - ' + str(border(cl, ll)))
-	print('um/c - ' + str(border(um, c)))
-	print('c/lm - ' + str(border(c, lm)))
-	print('ur/cr - ' + str(border(ur, cr)))
-	print('cr/lr - ' + str(border(cr, lr)))
+	print('ul/um - ' + str(avd(ul, um, h=True)))
+	print('um/ur - ' + str(avd(um, ur, h=True)))
+	print('cl/c - ' + str(avd(cl, c, h=True)))
+	print('c/cr - ' + str(avd(c, cr, h=True)))
+	print('ll/lm - ' + str(avd(ll, lm, h=True)))
+	print('lm/lr - ' + str(avd(lm, lr, h=True)))
+	print('ul/cl - ' + str(avd(ul, cl, h=False)))
+	print('cl/ll - ' + str(avd(cl, ll, h=False)))
+	print('um/c - ' + str(avd(um, c, h=False)))
+	print('c/lm - ' + str(avd(c, lm, h=False)))
+	print('ur/cr - ' + str(avd(ur, cr, h=False)))
+	print('cr/lr - ' + str(avd(cr, lr, h=False)))
 
 	#border of rows/columns
 	UM = mean([avd(ul, cl, h=False), avd(um, c, h=False), avd(ur, cr, h=False)])
+	UM = int(UM * 100)
 	ML = mean([avd(cl, ll, h=False), avd(c, lm, h=False), avd(cr, lr, h=False)])
-	LM = mean([avd(ur, um, h=True), avd(cr, c, h=True), avd(lr, lm, h=True)])
+	ML = int(ML * 100)
+	LM = mean([avd(ul, um, h=True), avd(cl, c, h=True), avd(ll, lm, h=True)])
+	LM = int(LM * 100)
 	MR = mean([avd(um, ur, h=True), avd(c, cr, h=True), avd(lm, lr, h=True)])
-	#scale
+	MR = int(MR * 100)
+
+	print('UM - ' + str(UM))
+	print('ML - ' + str(ML))
+	print('LM - ' + str(LM))
+	print('MR - ' + str(MR))
 
 def main():
 	m = get_monitors()[0]
@@ -95,7 +125,7 @@ def main():
 
 	sg.theme('DarkGrey3')
 	layout = [[sg.Frame('', [[sg.Image('images/test.png', size=(w, h), key='img'+str(fr*3+fc))]], pad=(5, 5), background_color='yellow', key='frm'+str(fr*3+fc)) for fc in range(3)] for fr in range(3)]
-	layout.extend = [[sg.Button('Exit', size=(10, 1), font='Helvetica 14')]]	
+	layout.extend([[sg.Button('Exit', size=(10, 1), font='Helvetica 14')]])
 	#update image with update(filename='')
 	#enable events for images so theyre clickable
 	window = sg.Window('GazePOD', layout, finalize=True, resizable=True)
@@ -103,7 +133,7 @@ def main():
 
 	gaze = GazeTracking()
 	webcam = cv2.VideoCapture(0)
-	calibrate(gaze, webcam)
+	calibrate(gaze, webcam, window)
 
 	h = []
 	v = []
@@ -111,11 +141,11 @@ def main():
 	i = 0
 	while True:
 		#get event or timeout
-		e, v = window.read(timeout=20) 
+		e, val = window.read(timeout=20) 
 		if e == 'Exit' or e == sg.WIN_CLOSED:
 			break
 		elif e == 'Calibrate':
-			calibrate(gaze, webcam)
+			calibrate(gaze, webcam, window)
 			continue
 
 		#get frame and gaze
@@ -129,10 +159,14 @@ def main():
 			h.append(sh)
 			if len(h) > QLEN:
 				h.pop(0)
+		else:
+			continue
 		if sv is not None:
 			v.append(sv)
 			if len(v) > QLEN:
 				v.pop(0)
+		else:
+			continue
 
 		#get average gaze direction
 		if i == QLEN:
@@ -141,10 +175,15 @@ def main():
 			d.append(s)
 			if len(d) > DLEN:
 				d.pop(0)
+		else:
+			i += 1
+			continue
 
 		#select image
 		if d.count(d[0]) == len(d):
-			select(d[0])
+			#select direction
+			key = 'img' + str(d[0])
+			window[key].update(visible=False)
 		else:
 			#set background color of d[0]
 			pass
