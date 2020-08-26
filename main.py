@@ -4,8 +4,8 @@ from screeninfo import get_monitors
 from statistics import mean
 from gaze_tracking import GazeTracking
 
-QLEN = 10
-DLEN = 3
+QLEN = 5
+DLEN = 2
 CLEN = 30
 
 UM = 0.847
@@ -66,9 +66,9 @@ def cal_dir(gaze, webcam, window, pos):
 
 	#check number of samples (or collect until CLEN samples)
 
-#	print('samples - ' + str(len(h)))
-#	print('mean h - ' + str(mean(h)))
-#	print('mean v - ' + str(mean(v)))
+	#print('dir - ' + str(pos))
+	#print('mean h - ' + str(mean(h)))
+	#print('mean v - ' + str(mean(v)))
 
 	return (mean(h), mean(v))
 
@@ -94,34 +94,65 @@ def calibrate(gaze, webcam, window):
 	lm = cal_dir(gaze, webcam, window, 7)
 	lr = cal_dir(gaze, webcam, window, 8)
 
-#	print('borders')
-#	print('ul/um - ' + str(avd(ul, um, h=True)))
-#	print('um/ur - ' + str(avd(um, ur, h=True)))
-#	print('cl/c - ' + str(avd(cl, c, h=True)))
-#	print('c/cr - ' + str(avd(c, cr, h=True)))
-#	print('ll/lm - ' + str(avd(ll, lm, h=True)))
-#	print('lm/lr - ' + str(avd(lm, lr, h=True)))
-#	print('ul/cl - ' + str(avd(ul, cl, h=False)))
-#	print('cl/ll - ' + str(avd(cl, ll, h=False)))
-#	print('um/c - ' + str(avd(um, c, h=False)))
-#	print('c/lm - ' + str(avd(c, lm, h=False)))
-#	print('ur/cr - ' + str(avd(ur, cr, h=False)))
-#	print('cr/lr - ' + str(avd(cr, lr, h=False)))
-#
+	s = str(int(ul[0] * 1000)) + '\t' + str(int(um[0] * 1000)) + '\t' + str(int(ur[0] * 1000)) + '\n\n'
+	s += str(int(ul[1] * 1000)) + '\t' + str(int(um[1] * 1000)) + '\t' + str(int(ur[1] * 1000)) + '\n\n'
+	s += str(int(cl[0] * 1000)) + '\t' + str(int(c[0] * 1000)) + '\t' + str(int(cr[0] * 1000)) + '\n\n'
+	s += str(int(cl[1] * 1000)) + '\t' + str(int(c[1] * 1000)) + '\t' + str(int(cr[1] * 1000)) + '\n\n'
+	s += str(int(ll[0] * 1000)) + '\t' + str(int(lm[0] * 1000)) + '\t' + str(int(lr[0] * 1000)) + '\n\n'
+	s += str(int(ll[1] * 1000)) + '\t' + str(int(lm[1] * 1000)) + '\t' + str(int(lr[1] * 1000)) + '\n\n'
+
+	#print('borders')
+	#print('ul/um - ' + str(avd(ul, um, h=True)))
+	#print('um/ur - ' + str(avd(um, ur, h=True)))
+	#print('cl/c - ' + str(avd(cl, c, h=True)))
+	#print('c/cr - ' + str(avd(c, cr, h=True)))
+	#print('ll/lm - ' + str(avd(ll, lm, h=True)))
+	#print('lm/lr - ' + str(avd(lm, lr, h=True)))
+	#print('ul/cl - ' + str(avd(ul, cl, h=False)))
+	#print('cl/ll - ' + str(avd(cl, ll, h=False)))
+	#print('um/c - ' + str(avd(um, c, h=False)))
+	#print('c/lm - ' + str(avd(c, lm, h=False)))
+	#print('ur/cr - ' + str(avd(ur, cr, h=False)))
+	#print('cr/lr - ' + str(avd(cr, lr, h=False)))
+
+	#print('um - ' + str(um))
+	#print('lm - ' + str(lm))
+	#print('cr - ' + str(cr))
+	#print('cl - ' + str(cl))
+
 	#border of rows/columns
-	UM = mean([avd(ul, cl, h=False), avd(um, c, h=False), avd(ur, cr, h=False)])
+	UM0 = mean([avd(ul, cl, h=False), avd(um, c, h=False), avd(ur, cr, h=False)])
+	UL1 = (lm[1] - um[1]) / 3
+	UM1 = um[1] + UL1
 	#UM = int(UM * 1000)
-	ML = mean([avd(cl, ll, h=False), avd(c, lm, h=False), avd(cr, lr, h=False)])
+	ML0 = mean([avd(cl, ll, h=False), avd(c, lm, h=False), avd(cr, lr, h=False)])
+	ML1 = um[1] + (2 * UL1)
 	#ML = int(ML * 1000)
-	LM = mean([avd(ul, um, h=True), avd(cl, c, h=True), avd(ll, lm, h=True)])
+	LM0 = mean([avd(ul, um, h=True), avd(cl, c, h=True), avd(ll, lm, h=True)])
+	LR1 = (cl[0] - cr[0]) / 3
+	LM1 = cl[0] - LR1
 	#LM = int(LM * 1000)
-	MR = mean([avd(um, ur, h=True), avd(c, cr, h=True), avd(lm, lr, h=True)])
+	MR0 = mean([avd(um, ur, h=True), avd(c, cr, h=True), avd(lm, lr, h=True)])
+	MR1 = cl[0] - (2 * LR1)
 	#MR = int(MR * 1000)
 
-	print('UM - ' + str(UM))
-	print('ML - ' + str(ML))
-	print('LM - ' + str(LM))
-	print('MR - ' + str(MR))
+	#print('UM - ' + str(UM))
+	#print('ML - ' + str(ML))
+	#print('LM - ' + str(LM))
+	#print('MR - ' + str(MR))
+
+	s += 'UL1 - ' + str(int(UL1 * 1000)) + '\t'
+	s += 'UM0 - ' + str(int(UM0 * 1000)) + ' '
+	s += 'UM1 - ' + str(int(UM1 * 1000)) + '\t'
+	s += 'ML0 - ' + str(int(ML0 * 1000)) + ' '
+	s += 'ML1 - ' + str(int(ML1 * 1000)) + '\n\n'
+	s += 'LR1 - ' + str(int(LR1 * 1000)) + '\t'
+	s += 'LM0 - ' + str(int(LM0 * 1000)) + ' '
+	s += 'LM1 - ' + str(int(LM1 * 1000)) + '\t'
+	s += 'MR0 - ' + str(int(MR0 * 1000)) + ' '
+	s += 'MR1 - ' + str(int(MR1 * 1000)) + '\n\n'
+
+	print(s)
 
 def main():
 	m = get_monitors()[0]
