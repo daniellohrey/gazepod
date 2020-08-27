@@ -4,14 +4,16 @@ from screeninfo import get_monitors
 from statistics import mean
 from gaze_tracking import GazeTracking
 
-QLEN = 5
-DLEN = 2
-CLEN = 30
+QLEN = 8 #samples before mean direction
+DLEN = 3 #directions before selection
+CLEN = 30 #samples for calibration
+TO = 20 #timeout for gui
+DEBUG = 0 #debug verbosity level
 
-UM = 0.847
-ML = 0.897
-LM = 0.678
-MR = 0.610
+UM = None
+ML = None
+LM = None
+MR = None
 
 def get_dir(h, v):
 	if v <= UM:
@@ -39,14 +41,14 @@ def get_dir(h, v):
 def cal_dir(gaze, webcam, window, pos):
 	key = 'img' + str(pos)
 	window[key].update(visible=False)
-	window.read(timeout=20)
+	window.read(timeout=TO)
 	time.sleep(1)
 
 	h = []
 	v = []
 	i = 0
 	while i < CLEN:
-		window.read(timeout=20)
+		window.read(timeout=TO)
 		_, frame = webcam.read()
 		gaze.refresh(frame)
 		sh = gaze.horizontal_ratio()
@@ -62,13 +64,7 @@ def cal_dir(gaze, webcam, window, pos):
 		i += 1
 
 	window[key].update(visible=True)
-	window.read(timeout=20)
-
-	#check number of samples (or collect until CLEN samples)
-
-	#print('dir - ' + str(pos))
-	#print('mean h - ' + str(mean(h)))
-	#print('mean v - ' + str(mean(v)))
+	window.read(timeout=TO)
 
 	return (mean(h), mean(v))
 
@@ -81,9 +77,8 @@ def avd(a, b, h=True):
 		return mean([av, bv])
 
 def calibrate(gaze, webcam, window):
-	#get average values for all directions
-	#change pos to integer
-	#change lower to bottom?
+	global UM, ML, LM, MR
+
 	ul = cal_dir(gaze, webcam, window, 0)
 	um = cal_dir(gaze, webcam, window, 1)
 	ur = cal_dir(gaze, webcam, window, 2)
@@ -94,65 +89,24 @@ def calibrate(gaze, webcam, window):
 	lm = cal_dir(gaze, webcam, window, 7)
 	lr = cal_dir(gaze, webcam, window, 8)
 
-	s = str(int(ul[0] * 1000)) + '\t' + str(int(um[0] * 1000)) + '\t' + str(int(ur[0] * 1000)) + '\n\n'
-	s += str(int(ul[1] * 1000)) + '\t' + str(int(um[1] * 1000)) + '\t' + str(int(ur[1] * 1000)) + '\n\n'
-	s += str(int(cl[0] * 1000)) + '\t' + str(int(c[0] * 1000)) + '\t' + str(int(cr[0] * 1000)) + '\n\n'
-	s += str(int(cl[1] * 1000)) + '\t' + str(int(c[1] * 1000)) + '\t' + str(int(cr[1] * 1000)) + '\n\n'
-	s += str(int(ll[0] * 1000)) + '\t' + str(int(lm[0] * 1000)) + '\t' + str(int(lr[0] * 1000)) + '\n\n'
-	s += str(int(ll[1] * 1000)) + '\t' + str(int(lm[1] * 1000)) + '\t' + str(int(lr[1] * 1000)) + '\n\n'
-
-	#print('borders')
-	#print('ul/um - ' + str(avd(ul, um, h=True)))
-	#print('um/ur - ' + str(avd(um, ur, h=True)))
-	#print('cl/c - ' + str(avd(cl, c, h=True)))
-	#print('c/cr - ' + str(avd(c, cr, h=True)))
-	#print('ll/lm - ' + str(avd(ll, lm, h=True)))
-	#print('lm/lr - ' + str(avd(lm, lr, h=True)))
-	#print('ul/cl - ' + str(avd(ul, cl, h=False)))
-	#print('cl/ll - ' + str(avd(cl, ll, h=False)))
-	#print('um/c - ' + str(avd(um, c, h=False)))
-	#print('c/lm - ' + str(avd(c, lm, h=False)))
-	#print('ur/cr - ' + str(avd(ur, cr, h=False)))
-	#print('cr/lr - ' + str(avd(cr, lr, h=False)))
-
-	#print('um - ' + str(um))
-	#print('lm - ' + str(lm))
-	#print('cr - ' + str(cr))
-	#print('cl - ' + str(cl))
-
 	#border of rows/columns
-	UM0 = mean([avd(ul, cl, h=False), avd(um, c, h=False), avd(ur, cr, h=False)])
-	UL1 = (lm[1] - um[1]) / 3
-	UM1 = um[1] + UL1
-	#UM = int(UM * 1000)
-	ML0 = mean([avd(cl, ll, h=False), avd(c, lm, h=False), avd(cr, lr, h=False)])
-	ML1 = um[1] + (2 * UL1)
-	#ML = int(ML * 1000)
-	LM0 = mean([avd(ul, um, h=True), avd(cl, c, h=True), avd(ll, lm, h=True)])
-	LR1 = (cl[0] - cr[0]) / 3
-	LM1 = cl[0] - LR1
-	#LM = int(LM * 1000)
-	MR0 = mean([avd(um, ur, h=True), avd(c, cr, h=True), avd(lm, lr, h=True)])
-	MR1 = cl[0] - (2 * LR1)
-	#MR = int(MR * 1000)
+	UM = mean([avd(ul, cl, h=False), avd(um, c, h=False), avd(ur, cr, h=False)])
+	ML = mean([avd(cl, ll, h=False), avd(c, lm, h=False), avd(cr, lr, h=False)])
+	LM = mean([avd(ul, um, h=True), avd(cl, c, h=True), avd(ll, lm, h=True)])
+	MR = mean([avd(um, ur, h=True), avd(c, cr, h=True), avd(lm, lr, h=True)])
 
-	#print('UM - ' + str(UM))
-	#print('ML - ' + str(ML))
-	#print('LM - ' + str(LM))
-	#print('MR - ' + str(MR))
-
-	s += 'UL1 - ' + str(int(UL1 * 1000)) + '\t'
-	s += 'UM0 - ' + str(int(UM0 * 1000)) + ' '
-	s += 'UM1 - ' + str(int(UM1 * 1000)) + '\t'
-	s += 'ML0 - ' + str(int(ML0 * 1000)) + ' '
-	s += 'ML1 - ' + str(int(ML1 * 1000)) + '\n\n'
-	s += 'LR1 - ' + str(int(LR1 * 1000)) + '\t'
-	s += 'LM0 - ' + str(int(LM0 * 1000)) + ' '
-	s += 'LM1 - ' + str(int(LM1 * 1000)) + '\t'
-	s += 'MR0 - ' + str(int(MR0 * 1000)) + ' '
-	s += 'MR1 - ' + str(int(MR1 * 1000)) + '\n\n'
-
-	print(s)
+	if DEBUG >= 1:
+		s = str(int(ul[0] * 1000)) + '\t' + str(int(um[0] * 1000)) + '\t' + str(int(ur[0] * 1000)) + '\n'
+		s += str(int(ul[1] * 1000)) + '\t' + str(int(um[1] * 1000)) + '\t' + str(int(ur[1] * 1000)) + '\n\n'
+		s += str(int(cl[0] * 1000)) + '\t' + str(int(c[0] * 1000)) + '\t' + str(int(cr[0] * 1000)) + '\n'
+		s += str(int(cl[1] * 1000)) + '\t' + str(int(c[1] * 1000)) + '\t' + str(int(cr[1] * 1000)) + '\n\n'
+		s += str(int(ll[0] * 1000)) + '\t' + str(int(lm[0] * 1000)) + '\t' + str(int(lr[0] * 1000)) + '\n'
+		s += str(int(ll[1] * 1000)) + '\t' + str(int(lm[1] * 1000)) + '\t' + str(int(lr[1] * 1000)) + '\n\n'
+		s += 'LM - ' + str(int(LM * 1000)) + '\t'
+		s += 'MR - ' + str(int(MR * 1000)) + '\n\n'
+		s += 'UM - ' + str(int(UM * 1000)) + '\n'
+		s += 'ML - ' + str(int(ML * 1000)) + '\n'
+		print(s)
 
 def main():
 	m = get_monitors()[0]
@@ -178,7 +132,7 @@ def main():
 	i = 0
 	while True:
 		#get event or timeout
-		e, val = window.read(timeout=20) 
+		e, val = window.read(timeout=TO) 
 		if e == 'Exit' or e == sg.WIN_CLOSED:
 			break
 		elif e == 'Calibrate':
