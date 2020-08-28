@@ -6,7 +6,7 @@ from gaze_tracking import GazeTracking
 from pod import Pod
 
 class Tracker():
-	def __init__(self, qlen=8, dlen=3, clen=30, to=20, debug=0, full_screen=False, theme='DarkGrey3', title='GazePOD'):
+	def __init__(self, qlen=8, dlen=3, clen=30, to=20, debug=0, full_screen=False, theme='DarkGrey3', title='GazePOD', pod=None, window=None):
 		""" Tracker
 		Options:
 			qlen - samples before mean direction
@@ -14,8 +14,8 @@ class Tracker():
 			clen - samples for calibration
 			to - timeout for gui
 			debug - debug verbosity level
-				1 - borders
-				2 - calibration
+				1 - borders, calibration
+				2 - 
 				3 - direction
 				4 - direction samples
 			full_screen - make window full screen
@@ -39,22 +39,31 @@ class Tracker():
 
 		m = get_monitors()[0]
 		h, w = m.height, m.width
-		h = ((h - (h % 3)) / 3) - 45 #TODO: adjust for different screen size
+		h = ((h - (h % 3)) / 3) - 45
 		w = ((w - (w % 3)) / 3) - 35
+		if self._DEBUG >= 3:
+			print('height - ' + str(h))
+			print('width - ' + str(w))
 
-		sg.theme(theme)
-		layout = [[sg.Frame('', [[sg.Image('images/test.png', size=(w, h), key='img'+str(fr*3+fc))]], pad=(5, 5), background_color='yellow', key='frm'+str(fr*3+fc)) for fc in range(3)] for fr in range(3)]
-		layout.extend([[sg.Button('Exit', size=(10, 1), font='Helvetica 14')]])
-		self.window = sg.Window(title, layout, finalize=True, resizable=True)
+		if pod == None:
+			self.pod = Pod(debug=self._DEBUG)
+		else:	
+			self.pod = pod
+
+		if window == None:
+			sg.theme(theme)
+			layout = [[sg.Frame('', [[sg.Image('images/blank.png', size=(w, h), key='img'+str(fr*3+fc), pad=(0,0))]], key='frm'+str(fr*3+fc)) for fc in range(3)] for fr in range(3)]
+			layout.extend([[sg.Button('Exit', size=(10, 1), font='Helvetica 14')], [sg.Button('Calibrate', size=(10, 1), font='Helvetica 14')]])
+			self.window = sg.Window(title, layout, finalize=True, resizable=True)
+			for i in range(9):
+				key = 'frm' + str(i)
+				self.window[key].Widget.config(padx=5, pady=5, background='yellow')
+		else:
+			self.window = window
+		self.window.read(timeout=self._TO)
+
 		if full_screen:
 			window.Maximize()
-
-		#padding color change
-		#window['fr0'].Widget.config(padx=30)
-		#window['fr0'].Widget.config(pady=30)
-		#window['fr0'].Widget.config(background='red')
-
-		self.pod = Pod(self.window)
 
 		self.gaze = GazeTracking()
 		self.webcam = cv2.VideoCapture(0)
@@ -123,10 +132,9 @@ class Tracker():
 		"""
 
 		key = 'img' + str(pos)
-		#TODO: update image with calibration image
-		self.window[key].update(visible=False)
+		self.window[key].update(filename='images/cal' + str(pos) + '.png')
 		self.window.read(timeout=self._TO)
-		time.sleep(1)
+		time.sleep(0.5)
 
 		h = []
 		v = []
@@ -146,7 +154,7 @@ class Tracker():
 				continue
 			i += 1
 
-		self.window[key].update(visible=True)
+		self.window[key].update(filename='images/blank.png')
 		self.window.read(timeout=self._TO)
 
 		return (mean(h), mean(v))
@@ -156,21 +164,29 @@ class Tracker():
 		Takes a gaze object, a webcam and a window (with required keys).
 		"""
 
+		for i in range(9):
+			key = 'img' + str(i)
+			self.window[key].update(filename='images/blank.png')
+
 		dirs = []
 		for i in range(9):
 			dirs.append(self._cal_dir(i))
 
 		#border of rows/columns
-		self.UM = mean([mean([dirs[0][0], dirs[3][0]]), mean([dirs[1][0], dirs[4][0]]), mean([dirs[2][0], dirs[5][0]])])
-		self.ML = mean([mean([dirs[3][0], dirs[6][0]]), mean([dirs[4][0], dirs[7][0]]), mean([dirs[5][0], dirs[8][0]])])
-		self.LM = mean([mean([dirs[0][1], dirs[1][1]]), mean([dirs[3][1], dirs[4][1]]), mean([dirs[6][1], dirs[7][1]])])
-		self.MR = mean([mean([dirs[1][1], dirs[2][1]]), mean([dirs[4][1], dirs[5][1]]), mean([dirs[7][1], dirs[8][1]])])
+		self.UM = mean([mean([dirs[0][1], dirs[3][1]]), mean([dirs[1][1], dirs[4][1]]), mean([dirs[2][1], dirs[5][1]])])
+		self.ML = mean([mean([dirs[3][1], dirs[6][1]]), mean([dirs[4][1], dirs[7][1]]), mean([dirs[5][1], dirs[8][1]])])
+		self.LM = mean([mean([dirs[0][0], dirs[1][0]]), mean([dirs[3][0], dirs[4][0]]), mean([dirs[6][0], dirs[7][0]])])
+		self.MR = mean([mean([dirs[1][0], dirs[2][0]]), mean([dirs[4][0], dirs[5][0]]), mean([dirs[7][0], dirs[8][0]])])
 
 		self._calibrated = True
 
-		if self._DEBUG >= 2:
-			s = str(int(dirs[0][0] * 1000)) + '\t' + str(int(dirs[1][0] * 1000)) + '\t' + str(int(dirs[3][0] * 1000)) + '\n'
-			s += str(int(dirs[0][1] * 1000)) + '\t' + str(int(dirs[1][1] * 1000)) + '\t' + str(int(dirs[3][1] * 1000)) + '\n\n'
+		for i in range(9):
+			key = 'img' + str(i)
+			self.window[key].update(filename='images/' + next(self.pod.next_state()) + '.png')
+
+		if self._DEBUG >= 1:
+			s = str(int(dirs[0][0] * 1000)) + '\t' + str(int(dirs[1][0] * 1000)) + '\t' + str(int(dirs[2][0] * 1000)) + '\n'
+			s += str(int(dirs[0][1] * 1000)) + '\t' + str(int(dirs[1][1] * 1000)) + '\t' + str(int(dirs[2][1] * 1000)) + '\n\n'
 			s += str(int(dirs[3][0] * 1000)) + '\t' + str(int(dirs[4][0] * 1000)) + '\t' + str(int(dirs[5][0] * 1000)) + '\n'
 			s += str(int(dirs[3][1] * 1000)) + '\t' + str(int(dirs[4][1] * 1000)) + '\t' + str(int(dirs[5][1] * 1000)) + '\n\n'
 			s += str(int(dirs[6][0] * 1000)) + '\t' + str(int(dirs[7][0] * 1000)) + '\t' + str(int(dirs[8][0] * 1000)) + '\n'
@@ -196,6 +212,9 @@ class Tracker():
 				self.calibrate()
 				continue
 
+			if not self._calibrated:
+				self.calibrate()
+
 			#get frame and gaze
 			_, frame = self.webcam.read()
 			self.gaze.refresh(frame)
@@ -209,33 +228,36 @@ class Tracker():
 				if len(h) == self._QLEN:
 					#get average gaze direction
 					s = self._get_dir(mean(h), mean(v))
-					key = 'img' + str(s)
-					self.window[key].update(visible=False)
-					#update frame background with
-					#window['fr0'].Widget.config(background='red')
-					#window['fr0'].Widget.config(highlightbackground='red')
-					#window['fr0'].Widget.config(highlightcolor='red')
 					d.append(s)
-					if len(d) > self._DLEN:
-						d.pop(0)
+					if len(d) == self._DLEN:
+						if d.count(d[-1]) == self._DLEN:
+							#select direction
+							self.pod.select(d[-1])
+							key = 'frm' + str(d[-1])
+							self.window[key].Winget.config(background='yellow')
+							for i in range(9):
+								key = 'img' + str(i)
+								self.window[key].update(filename='images/' + next(self.pod.next_state()) + '.png')
+							d = []
+							time.sleep(1)
+						else:
+							#highlight d[-1]
+							key = 'frm' + str(d[-1])
+							self.window[key].Widget.config(background='red')
+							if d[-1] != d[-2]:
+								key = 'frm' + str(d[-2])
+								self.window[key].Widget.config(background='yellow')
+							d.pop(0)
 					h = []
 					v = []
-					time.sleep(0.5)
+				else:
+					continue
 			else:
 				continue
 
-			#select image
-			if d.count(d[0]) == len(d):
-				#select direction
-				key = 'img' + str(d[0])
-				self.window[key].update(visible=True)
-			else:
-				#set background color of d[0]
-				pass
-
-		window.close()
+		self.window.close()
 		
 if __name__ == '__main__':
-	t = Tracker(debug=4)
+	t = Tracker(debug=4, clen=10, to=10)
 	t.calibrate()
 	t.loop()
